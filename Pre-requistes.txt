@@ -1,0 +1,2 @@
+You need to have a Kubernetes cluster with kubectl configured to access it.
+Use minikube or any other Kubernetes cluster.
