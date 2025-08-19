@@ -133,6 +133,8 @@ spec:
       containers:
       - name: php-redis
         image: docker.io/library/php:8.1-apache
+        command: ["/bin/bash"]
+        args: ["-c", "chown -R www-data:www-data /var/www/html && apache2-foreground"]
         resources:
           requests:
             cpu: 100m
