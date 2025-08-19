@@ -1,0 +1,99 @@
+* Create ArgoCD namespace
+kubectl create namespace argocd
+
+* Install ArgoCD in Kubernetes
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+* Install ArgoCD CLI
+curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+chmod +x /usr/local/bin/argocd
+
+* Expose ArgoCD API Server
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+
+*Config ArgoCD CLI with username admin and password admin
+kubectl -n argocd patch secret argo-secret \
+-p '{"stringData": {"admin.password": "$2a$10$mivhwttXM0U5eBrZGtAG8.VSRL1l9cZNAmaSaqotIzXRBRwID1NT.",
+        "admin.passwordMtime": "'$(date +%FT%T)'"
+    }}'
+
+
+argocd login --insecure --username admin --password admin
+
+* Expose ArgoCD UI
+kubectl port-forward svc/argocd-server -n argocd 10443:443 2>&1 > /dev/null &
+
+* Open UI on http://localhost:10443
+
+* Login to GitHub
+gh auth login
+
+* Create a repo in your GitHub account
+gh repo create --public git2k8s10min -y
+
+* Clone your repo
+gh repo clone git2k8s10min
+
+* Initialize git
+cd git2k8s10min
+git init
+git add .
+git commit -m "Initial commit"
+git push origin main
+
+* Add Readme.md and push to Github
+ echo "From GIT to Kubernetes in 10 mins with ArgoCD." > Readme.me
+ git add Readme.me
+ git commit -m "Add Readme.md"
+ git push origin main
+
+ * Create a live branch and push to Github with no kubernetes resources
+ git branch live
+ git push origin live
+
+ * Upload "Guestbook" deployment file and commit changes to Github
+ git checkout main
+ curl -kSs https://raw.githubusercontent.com/kubernetes/examples/master/guestbook/all-in-one/guestbook-all-in-one.yaml -o guestbook_app.yaml
+git add guestbook_app.yaml
+git commit -m "Added guestbook_app.yaml"
+git push origin main
+
+* Edit the guestbook_app.yaml, change the image tag of deployments to the following:
+Redis: docker.io/library/redis:7-alpine
+FrontEnd: docker.io/library/php:8.1-apache
+
+* Obtain HTTPS url from the GIT
+HTTPS_REPO_URL=$(git remote get-url origin)
+
+* Create k8s namespace
+kubectl create namespace git2k8s10min
+
+* Deploy App
+cat <<EOF | kubectl apply -f -
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: git2k8s10min
+  namespace: argocd
+spec:
+  destination:
+    namespace: git2k8s10min
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: $HTTPS_REPO_URL
+    path: .
+    targetRevision: main
+EOF
+
+* Check app status using ArgoCD CLI
+argocd app get git2k8s10min
+
+* Check kubernetes resources
+kubectl get -n git2k8s10min
+
+* Check kubernetes resources
+kubectl get -n git2k8s10min svc/frontend pods
+
+* Forward frontend service
+kubectl port-forward -n git2k8s10min svc/frontend 18080:80
